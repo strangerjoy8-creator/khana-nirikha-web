@@ -1,0 +1,18 @@
+{
+  "name": "খানা নিরীক্ষা",
+  "short_name": "খানা নিরীক্ষা",
+  "lang": "bn",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#eef2f6",
+  "theme_color": "#1f4e79",
+  "icons": [
+    {
+      "src": "img/dss-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

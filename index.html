@@ -1,0 +1,879 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="theme-color" content="#1f4e79">\n<link rel="manifest" href="manifest.webmanifest">
+<title>খানা নিরীক্ষা</title>
+<link rel="icon" href="img/dss-logo.png">
+<style>
+@font-face { font-family: "Kalpurush"; src: url("fonts/kalpurush.woff2") format("woff2"); font-display: swap; }
+/* readable for everyone: large type, dark text, strong contrast (WCAG AA or better everywhere) */
+:root {
+  --bg: #eef2f6; --panel: #ffffff; --ink: #111827; --muted: #374151; --line: #c9d2dd; --brand: #1f4e79; --brand-2: #1d5fa8;
+  --ok: #14532d; --ok-bg: #dcfce7; --ok-line: #15803d; --bad: #7c2d12; --bad-bg: #ffedd5; --bad-line: #c2410c;
+  --red: #b42318; --no: #1f2937; --no-bg: #e5e7eb; --info-bg: #e3edf9; --soft: #f6f9fd;
+  --shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.08);
+  --ease: cubic-bezier(.4,0,.2,1);
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }   /* hidden always wins over a display rule */
+body { margin: 0; font-family: "Kalpurush", "Nirmala UI", "Vrinda", sans-serif; background: var(--bg); color: var(--ink); font-size: 18px; line-height: 1.6; }
+header { background: var(--brand); color: #fff; padding: 12px 20px; display: flex; align-items: center; gap: 14px; }
+header img { width: 48px; height: 48px; background: #fff; border-radius: 50%; padding: 3px; }
+header h1 { font-size: 24px; margin: 0; font-weight: 700; }
+header p { margin: 0; font-size: 16px; }
+header .spacer { flex: 1; }
+header .badge { font-size: 15px; background: rgba(255,255,255,.18); padding: 4px 12px; border-radius: 99px; }
+main { max-width: 1640px; margin: 0 auto; padding: 16px 16px 40px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 18px; margin-bottom: 16px; }
+:focus-visible { outline: 3px solid var(--brand-2); outline-offset: 2px; }
+
+/* start: upload + three steps; once a batch is open the upload shrinks to one line */
+.hero { display: grid; grid-template-columns: 1.6fr 1fr; gap: 18px; align-items: stretch; }
+@media (max-width: 1000px) { .hero { grid-template-columns: 1fr; } }
+.drop { border: 3px dashed #7f9bbb; border-radius: 12px; padding: 30px 16px; text-align: center; background: var(--soft); cursor: pointer;
+        display: flex; flex-direction: column; justify-content: center; gap: 4px; transition: background .15s var(--ease), border-color .15s var(--ease); }
+.drop.over { background: var(--info-bg); border-color: var(--brand-2); }
+.drop strong { display: block; font-size: 22px; }
+.drop .hint { color: var(--muted); font-size: 17px; }
+.drop .row { justify-content: center; margin-top: 10px; }
+.steps { border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; background: #fff; }
+.steps h2 { margin-bottom: 6px; }
+.steps ol { margin: 0; padding: 0; list-style: none; counter-reset: s; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 34px 1fr; gap: 10px; padding: 7px 0; border-top: 1px solid #e5eaf0; }
+.steps li:first-child { border-top: 0; }
+.steps li::before { content: counter(s, bengali); width: 30px; height: 30px; border-radius: 50%; background: var(--brand); color: #fff;
+                    font-weight: 700; display: flex; align-items: center; justify-content: center; font-size: 17px; }
+.tools { margin-top: 12px; justify-content: space-between; }
+#uploadPanel.compact .hero { grid-template-columns: 1fr; }
+#uploadPanel.compact .steps, #uploadPanel.compact .drop .hint { display: none; }
+#uploadPanel.compact .drop { padding: 10px 16px; flex-direction: row; align-items: center; justify-content: space-between; text-align: left; border-width: 2px; }
+#uploadPanel.compact .drop strong { font-size: 18px; }
+#uploadPanel.compact .drop .row { margin-top: 0; }
+#uploadPanel.compact { padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+#uploadPanel.compact .hero { flex: 1 1 640px; }
+#uploadPanel.compact .tools { margin-top: 0; }
+#uploadPanel.compact #lastBatch:empty { display: none; }
+#uploadPanel.compact #formErr, #uploadPanel.compact #progWrap { flex-basis: 100%; }
+#formErr:empty { display: none; }
+
+.btn { font-family: inherit; font-size: 17px; border: 2px solid #9aabbf; background: #fff; color: var(--ink); padding: 8px 16px; border-radius: 8px; cursor: pointer;
+       transition: background .15s var(--ease); }
+.btn:hover { background: #f1f5fa; }
+.btn.primary { background: var(--brand); color: #fff; border-color: var(--brand); font-weight: 700; }
+.btn.primary:hover { background: #173d61; }
+.btn.small { font-size: 16px; padding: 4px 12px; }
+.btn.link { border-color: transparent; background: transparent; color: var(--brand); font-weight: 700; padding: 6px 10px; }
+.btn.link:hover { background: var(--info-bg); }
+.btn.del { color: #9a1c12; border-color: #d39b94; }
+.btn.del:hover { background: #fdecea; }
+.btn:disabled { opacity: .5; cursor: default; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+input[type=text], input[type=search], select, textarea { font-family: inherit; font-size: 17px; padding: 8px 10px; border: 2px solid #9aabbf; border-radius: 8px; background: #fff; color: var(--ink); }
+input[type=search] { min-width: 240px; flex: 1; }
+select { max-width: 420px; }
+h2 { font-size: 21px; margin: 0 0 10px; }
+.muted { color: var(--muted); font-size: 17px; }
+.progress { height: 14px; background: #d9e1ea; border-radius: 99px; overflow: hidden; margin: 12px 0 4px; }
+.progress > div { height: 100%; width: 0; background: var(--brand-2); transition: width .2s var(--ease); }
+
+/* results: counts on top, then tabs */
+.reshead { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.cards { display: flex; gap: 10px; flex-wrap: wrap; flex: 1; }
+.card { border-radius: 10px; padding: 6px 16px; border: 2px solid var(--line); background: #fff; cursor: pointer; font-family: inherit; font-size: 17px; color: var(--ink);
+        display: flex; align-items: baseline; gap: 10px; min-width: 150px; text-align: left; }
+.card .n { font-size: 28px; font-weight: 700; line-height: 1.2; }
+.card.ok { background: var(--ok-bg); border-color: var(--ok-line); color: var(--ok); }
+.card.bad { background: var(--bad-bg); border-color: var(--bad-line); color: var(--bad); }
+.card.no { background: var(--no-bg); border-color: #6b7280; color: var(--no); }
+.card.red { background: var(--red); border-color: var(--red); color: #fff; }
+.card.active { outline: 4px solid var(--brand-2); outline-offset: 2px; }
+.tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--line); margin: 14px 0 12px; flex-wrap: wrap; }
+.tab { font-family: inherit; font-size: 18px; background: none; border: 0; border-bottom: 4px solid transparent; margin-bottom: -2px; padding: 8px 16px;
+       cursor: pointer; color: var(--muted); border-radius: 8px 8px 0 0; }
+.tab:hover { background: #f1f5fa; color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--brand); border-bottom-color: var(--brand); font-weight: 700; }
+.tab .cnt { display: inline-block; min-width: 26px; padding: 0 8px; margin-left: 6px; border-radius: 99px; background: var(--info-bg); color: var(--brand); font-size: 15px; font-weight: 700; }
+.listbar { margin-bottom: 10px; }
+.chip { display: inline-flex; gap: 6px; align-items: center; background: var(--info-bg); color: var(--brand); border: 2px solid #8fb0e8; border-radius: 99px; padding: 2px 6px 2px 12px; font-size: 16px; }
+.chip button { font-family: inherit; border: 0; background: var(--brand); color: #fff; border-radius: 99px; padding: 0 10px; cursor: pointer; font-size: 15px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 18px; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 17px; color: var(--ink); font-weight: 700; background: #e3eaf3; position: sticky; top: 0; z-index: 1; }
+tbody tr { cursor: pointer; } tbody tr:hover { background: #f3f7fc; } tbody tr.sel { background: var(--info-bg); box-shadow: inset 5px 0 0 var(--brand-2); }
+tbody tr.redrow td:first-child { border-left: 6px solid var(--red); }
+td.act { text-align: right; white-space: nowrap; }
+td.act .btn + .btn { margin-left: 6px; }
+.drawer .dtop input[type=search] { min-width: 320px; }
+.pill { display: inline-block; padding: 2px 12px; border-radius: 99px; font-size: 17px; font-weight: 700; white-space: nowrap; border: 2px solid; }
+.pill.ok { background: var(--ok-bg); color: var(--ok); border-color: var(--ok-line); }
+.pill.bad { background: var(--bad-bg); color: var(--bad); border-color: var(--bad-line); }
+.pill.no { background: var(--no-bg); color: var(--no); border-color: #6b7280; }
+.pill.red { background: var(--red); color: #fff; border-color: var(--red); }
+.layout { display: grid; grid-template-columns: minmax(380px, 1fr) minmax(0, 1.35fr); gap: 16px; align-items: start; }
+@media (max-width: 1050px) { .layout { grid-template-columns: 1fr; } }
+.tablewrap { max-height: calc(100vh - 250px); min-height: 360px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.detail { position: sticky; top: 10px; max-height: calc(100vh - 20px); overflow: auto; }
+@media (max-width: 1050px) { .tablewrap, .detail { max-height: none; position: static; } }
+.detail h3 { margin: 0; font-size: 24px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; font-size: 18px; margin: 8px 0; }
+.kv span:nth-child(odd) { color: var(--muted); }
+.verdict { font-size: 21px; font-weight: 700; padding: 10px 14px; border-radius: 8px; margin: 12px 0; border: 2px solid; }
+.verdict.ok { background: var(--ok-bg); color: var(--ok); border-color: var(--ok-line); }
+.verdict.bad { background: var(--bad-bg); color: var(--bad); border-color: var(--bad-line); }
+.verdict.no { background: var(--no-bg); color: var(--no); border-color: #6b7280; }
+.issue { border: 2px solid var(--line); border-left: 8px solid var(--bad-line); border-radius: 8px; padding: 10px 14px; margin: 10px 0; }
+.issue .lab { font-weight: 700; display: inline-block; min-width: 72px; }
+.issue .p { margin-bottom: 6px; }
+.issue .a { background: #f3f7fc; border-radius: 6px; padding: 6px 10px; }
+.issue .a .lab { color: var(--brand); }
+.match { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; } .match img { height: 80px; border: 3px solid var(--red); border-radius: 4px; }
+.thumbs { display: flex; gap: 10px; flex-wrap: wrap; margin: 8px 0; } .thumbs figure { margin: 0; font-size: 16px; color: var(--muted); text-align: center; }
+.thumbs img { height: 110px; border: 1px solid var(--line); border-radius: 6px; display: block; background: #fff; }
+.dhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+.sect { font-size: 18px; margin: 16px 0 4px; color: var(--brand); }
+.box2 { border: 2px solid var(--brand-2); border-radius: 10px; padding: 12px 16px; margin: 0 0 14px; background: var(--soft); }
+.box2 h3 { margin: 0 0 6px; font-size: 20px; }
+.box2 ol { margin: 4px 0; padding-left: 26px; } .box2 li { margin: 6px 0; cursor: pointer; } .box2 li:hover { text-decoration: underline; }
+.box2 .why { color: var(--muted); }
+.ward { border-top: 1px solid var(--line); padding: 8px 0; }
+.hist-batch { border: 2px solid var(--line); border-radius: 10px; margin: 12px 0; overflow: hidden; }
+.hist-batch .hb { background: #e9f0f8; padding: 8px 14px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.hist-batch table td, .hist-batch table th { padding: 7px 10px; }
+.hist-batch tbody tr { cursor: default; }
+.modal-back { position: fixed; inset: 0; background: rgba(17,24,39,.45); display: flex; align-items: center; justify-content: center; z-index: 60; padding: 16px; }
+.modal { background: #fff; border-radius: 12px; max-width: 520px; width: 100%; padding: 22px 24px 18px; box-shadow: 0 12px 40px rgba(0,0,0,.25); }
+.modal .q { font-size: 21px; font-weight: 700; margin: 0 0 8px; }
+.modal .what { font-size: 17px; color: var(--muted); margin: 0 0 6px; word-break: break-word; }
+.modal .row { justify-content: flex-end; margin-top: 18px; }
+/* help and history open at the side, over the results (the results stay where they were) */
+.drawer-back { position: fixed; inset: 0; background: rgba(17,24,39,.35); z-index: 50; display: flex; justify-content: flex-end; }
+.drawer { background: #fff; width: min(900px, 100%); height: 100%; overflow: auto; padding: 20px 24px 30px; box-shadow: -10px 0 40px rgba(0,0,0,.2);
+          animation: slide .22s var(--ease); }
+.drawer .dtop { position: sticky; top: -20px; background: #fff; padding: 6px 0 10px; z-index: 2; justify-content: space-between; border-bottom: 1px solid var(--line); margin-bottom: 10px; }
+@keyframes slide { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .drawer { animation: none; } * { transition: none !important; } }
+.btn.danger { background: #b42318; color: #fff; border-color: #b42318; font-weight: 700; }
+.btn.danger:hover { background: #8f1c13; }
+.comp { border: 2px solid var(--line); border-radius: 8px; padding: 6px 14px; margin: 8px 0; font-size: 18px; }
+.comp ul, .comp ol { margin: 2px 0; padding-left: 24px; }
+.risk { font-weight: 700; padding: 0 8px; border-radius: 99px; }
+.risk.ok { background: #dcfce7; color: #14532d; } .risk.warn { background: #fef3c7; color: #7a3e00; } .risk.bad { background: #fde2e1; color: #9a1c12; }
+.types { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 10px; }
+.tgroup { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; background: #fff; }
+.tgroup h4 { margin: 0 0 6px; font-size: 18px; display: flex; justify-content: space-between; cursor: pointer; }
+.trow { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 3px 4px; border-radius: 6px; cursor: pointer; font-size: 16px; }
+.trow:hover, .tgroup h4:hover { background: #eef4ff; }
+.trow.active, .tgroup h4.active { background: #dbe8fb; }
+.tbar { grid-column: 1 / -1; height: 5px; background: #c9daf3; border-radius: 3px; }
+.tbar > i { display: block; height: 5px; background: #1f4e79; border-radius: 3px; }
+.help h3 { margin: 14px 0 4px; font-size: 19px; color: #1f4e79; }
+.help ol, .help ul { margin: 4px 0; padding-left: 26px; } .help li { margin: 4px 0; }
+.help b.k { background: #e3edf9; padding: 0 6px; border-radius: 4px; font-weight: 600; }
+/* household family tree — same rules as fcaudit/familytree.py CSS (tests/test_server.py checks they match) */
+.ft { margin: 8px 0; }
+.ft .grid { display: grid; grid-template-columns: 1fr 1.8fr 1fr; gap: 10px 12px; align-items: start; }
+.ft .cell { min-height: 1px; position: relative; }
+.ft .cell.c.down::after { content: ""; position: absolute; left: 50%; bottom: -10px; height: 10px; border-left: 3px solid #1d5fa8; }
+.ft .grp { border: 2px solid #9db8dc; border-radius: 8px; padding: 4px 6px 6px; background: #fff; }
+.ft .grp.blood { border-color: #1d5fa8; } .ft .grp.marriage { border: 2px dashed #b4537a; } .ft .grp.other { border-color: #9aa3ad; background: #f6f7f9; }
+.ft .cap { font-size: 14px; font-weight: 700; margin: 0 0 4px; color: #1f4e79; }
+.ft .grp.marriage .cap { color: #8a2f57; } .ft .grp.other .cap { color: #374151; }
+.ft .people { display: flex; flex-wrap: wrap; gap: 6px; }
+.ft .p { border: 1px solid #c9d2dd; border-radius: 6px; padding: 2px 8px; background: #fff; font-size: 14px; line-height: 1.35; min-width: 96px; max-width: 220px; }
+.ft .p b { display: block; font-size: 16px; }
+.ft .p.F { border-left: 5px solid #c2417b; } .ft .p.M { border-left: 5px solid #1d5fa8; } .ft .p.H { border-left: 5px solid #7c3aed; }
+.ft .couple { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.ft .root { border: 3px solid #1f4e79; background: #eef4ff; }
+.ft .ring { font-weight: 700; color: #8a2f57; font-size: 15px; }
+.ft .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 14px; color: #374151; margin-top: 6px; }
+.ft .legend i { display: inline-block; width: 22px; height: 0; vertical-align: middle; margin-right: 4px; }
+.ft .note { font-size: 14px; color: #374151; margin-top: 4px; }
+.tl { border: 2px solid var(--line); border-radius: 8px; padding: 8px 14px; margin: 10px 0; }
+.tl ol { margin: 4px 0; padding-left: 0; list-style: none; }
+.tl li { border-left: 4px solid #c9daf3; padding: 2px 0 6px 12px; margin-left: 4px; }
+.tl li.cur { border-left-color: var(--brand-2); }
+.tl .when { font-weight: 700; } .tl .fix { color: var(--ok); } .tl .new { color: var(--bad); }
+table.areas td.c { text-align: center; white-space: nowrap; }
+table.areas tr.un td { background: #eef3fa; font-weight: 700; }
+table.areas tr.wd td:first-child { padding-left: 28px; }
+table.areas tbody tr { cursor: default; }
+.recheck { border: 2px solid #8fb0e8; background: #eef4ff; border-radius: 8px; padding: 8px 14px; margin: 8px 0; }
+.empty { color: var(--muted); text-align: center; padding: 30px; }
+.err-text { color: var(--red); font-size: 17px; font-weight: 700; }
+body.desktop > header, body.desktop > footer.credit { display: none; }   /* the desktop window shows its own header and credit */
+footer.credit { text-align: center; font-size: 14px; color: var(--muted); padding: 6px 0 14px; }
+@media (max-width: 640px) { header .badge { display: none; } header h1 { font-size: 20px; } }
+</style>
+</head>
+<body>
+<header>
+  <img src="img/dss-logo.png" alt="">
+  <div>
+    <h1>খানা নিরীক্ষা</h1>
+    <p>সমাজসেবা অধিদপ্তর · ফ্যামিলি কার্ড খানা তথ্য যাচাই</p>
+  </div>
+  <div class="spacer"></div>
+  <span class="badge" id="ver"></span>
+</header>
+<main>
+  <section class="panel" id="uploadPanel">
+    <div class="hero">
+      <div class="drop" id="drop" role="button" tabindex="0" aria-label="PDF ফাইল নির্বাচন করুন">
+        <div>
+          <strong id="dropTitle">আবেদনপত্রের PDF এখানে টেনে আনুন</strong>
+          <span class="hint">অথবা নিচের বোতাম থেকে ফাইল বা পুরো ফোল্ডার নির্বাচন করুন। শুধু ISPMIS-এ জমা দেওয়া আবেদনপত্রের PDF যাচাই হয় — একসাথে সর্বোচ্চ ৫০০টি।</span>
+        </div>
+        <div class="row">
+          <button class="btn primary" id="pickFiles">ফাইল নির্বাচন করুন</button>
+          <button class="btn" id="pickFolder">ফোল্ডার নির্বাচন করুন</button>
+        </div>
+      </div>
+      <div class="steps">
+        <h2>তিন ধাপে কাজ</h2>
+        <ol>
+          <li><span><b>PDF দিন</b> — ISPMIS থেকে নামানো আবেদনপত্র।</span></li>
+          <li><span><b>ফলাফল দেখুন</b> — প্রতিটি আবেদনের সমস্যা ও করণীয়।</span></li>
+          <li><span><b>পাঠান</b> — ফলাফল PDF বা সব একসাথে ZIP, তথ্য সংগ্রহকারী ও সুপারভাইজারকে।</span></li>
+        </ol>
+      </div>
+    </div>
+    <input type="file" id="fileInput" accept="application/pdf,.pdf" multiple hidden>
+    <input type="file" id="folderInput" webkitdirectory directory multiple hidden>
+    <div class="row tools">
+      <div id="lastBatch" class="row"></div>
+      <div class="row">
+        <button class="btn link" id="histBtn">ইতিহাস</button>
+        <button class="btn link" id="helpBtn">কীভাবে ব্যবহার করবেন</button>
+        <button class="btn link" id="cacheBtn" title="অ্যাপ ধীর হয়ে গেলে: মেমরি ও অস্থায়ী ফাইল খালি করে (ইতিহাস মুছবে না)">ক্যাশ পরিষ্কার</button>
+      </div>
+    </div>
+    <div id="formErr" class="err-text"></div>
+    <div id="progWrap" hidden>
+      <div class="progress"><div id="prog"></div></div>
+      <div class="muted" id="progText"></div>
+    </div>
+  </section>
+
+  <div class="drawer-back" id="helpPanel" hidden><aside class="drawer help" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <div class="row dtop"><h2 style="margin:0" id="helpTitle">সফটওয়্যারটি কীভাবে ব্যবহার করবেন</h2>
+      <button class="btn" id="helpClose">বন্ধ করুন</button></div>
+    <p>"খানা নিরীক্ষা" ISPMIS-এর ফ্যামিলি কার্ড আবেদনপত্র পড়ে দেখায়, আবেদনপত্রের তথ্যগুলো একটি আরেকটির সাথে মেলে কি না — আর প্রতিটি অমিলের পাশে কী করতে হবে। এটি কারও বিরুদ্ধে ব্যবস্থার জন্য নয়; উদ্দেশ্য তথ্য সংগ্রহকারী ও সুপারভাইজারদের সংশোধনের পরামর্শ দেওয়া।</p>
+    <h3>১. আবেদনপত্র যাচাই</h3>
+    <ol>
+      <li>ISPMIS-এ আবেদন খুলে <b class="k">পিডিএফ দেখুন</b> থেকে আবেদনপত্রের PDF নামিয়ে রাখুন। শুধু ISPMIS-এর PDF চলে; স্ক্যান বা ছবি নয়।</li>
+      <li>PDF ফাইলগুলো বক্সে টেনে আনুন, অথবা <b class="k">ফাইল নির্বাচন করুন</b> / <b class="k">ফোল্ডার নির্বাচন করুন</b>। একবারে সর্বোচ্চ ৫০০টি।</li>
+      <li>অগ্রগতি দেখা যাবে; শেষ হলে ফলাফলের তালিকা আসবে।</li>
+    </ol>
+    <h3>২. ফলাফল দেখা</h3>
+    <ul>
+      <li>ওপরের সংখ্যাগুলো (মোট / সমস্যা নেই / সমস্যা আছে) নির্বাচন করলে তালিকা সেভাবে ছাঁকা হয়। নাম বা আবেদন আইডি দিয়েও খোঁজা যায়।</li>
+      <li>প্রতিটি আবেদনের <b>খানার গঠন — পারিবারিক গাছ</b>-এ আবেদনকারী নারী মূলে; ওপরে দাদা-দাদি ও বাবা-মা, নিচে সন্তান ও নাতি-নাতনি, বাঁয়ে তাঁর ভাই-বোন, ডানে স্বামীর দিকের আত্মীয় ও ছেলের বউ/জামাতা। নীল রেখা = রক্ত / জন্মগত সম্পর্ক, গোলাপি ভাঙা রেখা = বৈবাহিক সম্পর্ক; অন্য আত্মীয়, অনাত্মীয় ও গৃহকর্মী আলাদা বক্সে।</li>
+      <li><b class="k">আবেদন</b> ট্যাবে বাঁ দিকে তালিকা, ডান দিকে নির্বাচিত আবেদনের প্রতিটি সমস্যা ও তার <b>করণীয়</b>। কিবোর্ডের ↑ / ↓ চাপলে পরের বা আগের আবেদনে যাওয়া যায়।</li>
+      <li><b class="k">আগে যেখানে যাবেন</b> ট্যাবে সবচেয়ে জরুরি খানাগুলো থাকে; তাদের সরেজমিন যাচাই-ফর্ম প্রিন্ট করা যায়।</li>
+      <li><b class="k">এলাকা (ইউনিয়ন/ওয়ার্ড)</b> ট্যাবে দেখা যায় কোন ইউনিয়ন ও ওয়ার্ডে কতটি আবেদনে সমস্যা, আর সেখানে কোন ভুল সবচেয়ে বেশি; <b class="k">এলাকাভিত্তিক সারাংশ PDF</b> মাসিক সভার জন্য।</li>
+      <li><b class="k">ভুলের ধরন</b> ট্যাবে দেখা যায় কোন ভুল কতটি আবেদনে আছে — মাঠে কোন ভুল বেশি হচ্ছে, প্রশিক্ষণে কী জোর দিতে হবে। কোনো ধরন বা ভুলের নাম নির্বাচন করলে তালিকায় শুধু সেই আবেদনগুলো দেখায়।</li>
+    </ul>
+    <h3>৩. সংরক্ষণ ও পাঠানো</h3>
+    <ul>
+      <li><b class="k">ফলাফল PDF</b> — একটি আবেদনের ফলাফল, ফাইলের নাম আবেদনকারীর নামে (যেমন "রহিমা বেগম_ফলাফল.pdf")। <b class="k">সব ফলাফল একসাথে (ZIP)</b> — প্রতিটি আবেদনের আলাদা PDF, একটি ZIP ফাইলে। <b class="k">সারাংশ PDF</b> — পুরো ব্যাচের এক তালিকা ও ভুলের ধরনভিত্তিক সারাংশ।</li>
+      <li>এগুলো তথ্য সংগ্রহকারী ও সুপারভাইজারকে দিয়ে ISPMIS-এ সংশোধন করান।</li>
+    </ul>
+    <h3>৪. সংশোধনের পর আবার যাচাই</h3>
+    <ul><li>সংশোধিত আবেদনের নতুন PDF আবার দিন — ফলাফলে দেখাবে আগের কোন সমস্যাগুলো ঠিক হয়েছে।</li>
+      <li>একই আবেদন এই কম্পিউটারে একাধিকবার যাচাই হলে ফলাফলে <b>যাচাইয়ের সময়রেখা</b> দেখায় — কবে যাচাই হয়েছিল, তখন কী সমস্যা ছিল, পরে কোনটি ঠিক হয়েছে আর কোনটি নতুন। ফলাফল PDF-এও থাকে।</li></ul>
+    <h3>৫. ইতিহাস</h3>
+    <ul><li><b class="k">ইতিহাস</b> থেকে আগের যেকোনো যাচাই আবার দেখা, PDF বা ZIP নামানো যায়। <b class="k">মুছুন</b> নির্বাচন করলে স্থায়ীভাবে মুছে যায়।</li></ul>
+    <h3>৬. সমস্যা হলে</h3>
+    <ul>
+      <li><b>অ্যাপ ধীর মনে হলে:</b> <b class="k">ক্যাশ পরিষ্কার</b> নির্বাচন করুন — ইতিহাস মুছবে না।</li>
+      <li><b>"ISPMIS-এর আবেদন নয়" দেখালে:</b> ISPMIS থেকে নামানো মূল PDF দিন।</li>
+      <li><b>পর্দা সাদা থাকলে:</b> কয়েক সেকেন্ড অপেক্ষা করুন — অ্যাপ নিজে অন্য পদ্ধতিতে আবার চালু হয়। তবুও না হলে গ্রাফিক্স ড্রাইভার হালনাগাদ করুন।</li>
+      <li><b>৫০০টির বেশি ফাইল:</b> কয়েকটি ভাগে দিন।</li>
+    </ul>
+    <p class="muted">কোনো তথ্য এই কম্পিউটারের বাইরে যায় না। ফলাফল কারও বিরুদ্ধে ব্যবস্থার সুপারিশ নয় — বেশির ভাগ অমিল লেখার ভুল, যা সহজেই সংশোধন করা যায়।</p>
+  </aside></div>
+
+  <div class="drawer-back" id="historyPanel" hidden><aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="histTitle">
+    <div class="row dtop">
+      <h2 style="margin:0" id="histTitle">ইতিহাস — আগে যাচাই করা আবেদন</h2>
+      <div class="row"><input type="search" id="hq" placeholder="নাম বা আবেদন আইডি দিয়ে খুঁজুন"><button class="btn" id="histClose">বন্ধ করুন</button></div>
+    </div>
+    <p class="muted" style="margin:0">আগে যাচাই করা প্রতিটি আবেদনের ফলাফল এখানে থাকে — যতক্ষণ না আপনি মুছে ফেলেন। মুছে ফেললে আর ফেরত পাওয়া যায় না।</p>
+    <div id="histList"></div>
+  </aside></div>
+
+  <section class="panel" id="resultsPanel" hidden>
+    <div class="reshead">
+      <div class="cards" id="cards"></div>
+      <div class="row">
+        <button class="btn primary" id="pdfAll" disabled title="প্রতিটি আবেদনের আলাদা ফলাফল PDF, সব একসাথে একটি ZIP ফাইলে">সব ফলাফল একসাথে ডাউনলোড (ZIP)</button>
+        <button class="btn" id="pdfSum" disabled>সারাংশ PDF</button>
+      </div>
+    </div>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="list" aria-selected="true">আবেদন<span class="cnt" id="cntList"></span></button>
+      <button class="tab" role="tab" data-tab="plan" hidden>আগে যেখানে যাবেন<span class="cnt" id="cntPlan"></span></button>
+      <button class="tab" role="tab" data-tab="types" hidden>ভুলের ধরন<span class="cnt" id="cntTypes"></span></button>
+      <button class="tab" role="tab" data-tab="areas" hidden>এলাকা (ইউনিয়ন/ওয়ার্ড)<span class="cnt" id="cntAreas"></span></button>
+      <button class="tab" role="tab" data-tab="wards" hidden>ওয়ার্ডের সতর্কতা<span class="cnt" id="cntWards"></span></button>
+    </div>
+    <div id="pane-list" role="tabpanel">
+      <div class="row listbar">
+        <input type="search" id="q" placeholder="নাম বা আবেদন আইডি দিয়ে খুঁজুন">
+        <select id="tsel" title="শুধু এই ধরনের সমস্যা আছে এমন আবেদন দেখুন"><option value="">সমস্যার ধরন: সব</option></select>
+        <span id="activeFilter"></span>
+      </div>
+      <div class="layout">
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>#</th><th>আবেদনকারী</th><th>ফলাফল</th><th></th></tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+        <div class="panel detail" id="detail" style="margin:0"><div class="empty">ফলাফল দেখতে বাঁ দিকের তালিকা থেকে একটি আবেদন নির্বাচন করুন।</div></div>
+      </div>
+    </div>
+    <div id="pane-plan" role="tabpanel" hidden><div class="box2" id="planbox"></div></div>
+    <div id="pane-types" role="tabpanel" hidden><div class="box2" id="typebox"></div></div>
+    <div id="pane-areas" role="tabpanel" hidden><div class="box2" id="areabox"></div></div>
+    <div id="pane-wards" role="tabpanel" hidden><div class="box2" id="wardbox"></div></div>
+  </section>
+</main>
+<footer class="credit">ডেভেলপার: মনির হোসেন</footer>
+<div class="modal-back" id="modal" hidden><div class="modal" role="dialog" aria-modal="true">
+  <p class="q" id="modalQ"></p><p class="what" id="modalWhat"></p>
+  <div class="row"><button class="btn" id="modalNo">না</button><button class="btn danger" id="modalYes">হ্যাঁ, মুছে ফেলুন</button></div>
+</div></div>
+<script>
+const $ = (s) => document.querySelector(s);
+const DESKTOP = new URLSearchParams(location.search).get("desktop") === "1";
+if (DESKTOP) document.body.classList.add("desktop");
+// Bengali digits for display; Latin words and codes keep ASCII digits
+// digits: one map, character by character (never Number()/toLocaleString(), so '0123' stays 4 digits with its zero)
+const BN_DIGITS = "০১২৩৪৫৬৭৮৯";
+const toBnDigits = (s) => String(s ?? "").replace(/[0-9]/g, (d) => BN_DIGITS[d]);
+const toAsciiDigits = (s) => String(s ?? "").replace(/[০-৯]/g, (d) => String(BN_DIGITS.indexOf(d)));
+// numbers inside running text; digits glued to Latin letters or '-' (file names, 'case-01') are left as they are
+const BN = (n) => String(n ?? "").replace(/(?<![A-Za-z0-9_.])(?<![A-Za-z0-9]-)\d+(?:[.,]\d+)*(?![A-Za-z0-9_.])(?!-[A-Za-z0-9])/g, toBnDigits);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const t = (s) => BN(esc(s));
+let typeFilter = "";   // "" | "t:<type>" | "c:<code>"
+let job = null, results = [], filter = "ALL", selected = null, polling = null, plan = null, finished = false, tab = "list";
+const IMGBN = {photo: "আবেদনকারীর ছবি", house: "বাসার ছবি (এই সংস্করণে স্বয়ংক্রিয় যাচাই নেই, ছবিটি নিজে দেখে নিন)", signature: "স্বাক্ষর"};
+const imgUrl = (i, k) => `/api/jobs/${job}/img/${i}/${k}`;
+const printUrl = (ids) => `/api/jobs/${job}/print?i=${ids.join(",")}`;
+const BATCH_ACTION = "দুটি আবেদন পাশাপাশি খুলে দেখুন — একই খানা দুবার জমা হয়েছে, খানা ভাগ হয়েছে, না নম্বর ভুল লেখা হয়েছে; ভুল হলে সংশোধন করুন।";
+const EMPTY_DETAIL = '<div class="empty">ফলাফল দেখতে বাঁ দিকের তালিকা থেকে একটি আবেদন নির্বাচন করুন।</div>';
+
+// the result of one form: a list of {problem, action} — nothing else (same list as the PDF: fcaudit/resultsheet.py)
+function issues(r) {
+  if (!r || !r.ok) return [];
+  return (r.action_plan || []).map((x) => ({problem: x.problem, action: x.action, image_refs: x.image_refs}))
+    .concat((r.batch_notes || []).map((b) => ({problem: "অন্য আবেদনের সাথে মিল: " + b, action: BATCH_ACTION})));
+}
+const isRed = (r) => r.ok && r.audit_verdict && r.audit_verdict.red_flag;
+const kind = (r) => !r.ok ? "NO" : issues(r).length ? "BAD" : "OK";
+function pill(r) {
+  if (!r.ok) return `<span class="pill no">${r.not_ispmis ? "ISPMIS-এর আবেদন নয়" : "ফাইল খোলা যায়নি"}</span>`;
+  const n = issues(r).length;
+  return (isRed(r) ? '<span class="pill red">🚩</span> ' : "") + (n ? `<span class="pill bad">${BN(n)}টি সমস্যা</span>` : '<span class="pill ok">সমস্যা নেই</span>');
+}
+
+// ---- result PDFs: one file per form, named after the applicant ("<নাম>_ফলাফল.pdf"; the window adds " (2)" for a second one)
+const ascii = toAsciiDigits;
+const pdfName = (r) => `${(r.applicant_name || "").replace(/\s+/g, " ").trim() || ascii(r.application_id) || (r.file_name || "ফলাফল").replace(/\.pdf$/i, "")}_ফলাফল`;
+function saveSummary() {   // one list for the whole batch
+  if (!job) return;
+  const d = new Date(), name = `সারাংশ_${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  if (DESKTOP) console.log("KN_PDF:" + JSON.stringify({job, items: [{summary: true, name}]}));
+  else window.open(`/api/jobs/${job}/summary?print=1`, "_blank");
+}
+function savePdf(ids, zip = false) {
+  ids = ids.filter((i) => results[i]);
+  if (!ids.length) return;
+  if (DESKTOP) {   // the desktop window renders each result page as a PDF (several at a time); zip = all in one ZIP file
+    const d = new Date(), zipName = `ফলাফল_${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${ids.length}টি`;
+    console.log("KN_PDF:" + JSON.stringify({job, zip, zipName, items: ids.map((i) => ({i, name: pdfName(results[i])}))}));
+  } else {         // plain browser: print dialog -> "Save as PDF" (every form on its own page)
+    window.open(`/api/jobs/${job}/result?i=${ids.join(",")}&print=1`, "_blank");
+  }
+}
+
+async function startJob(body) {
+  const res = await fetch("/api/jobs", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+  const j = await res.json();
+  if (!res.ok) throw new Error(j.error || "ত্রুটি");
+  return j;
+}
+
+// the last batch is kept on this computer (encrypted): show it so it can be opened again after closing the app
+const pad = (n) => String(n).padStart(2, "0");
+async function showLast() {
+  try {
+    const b = await (await fetch("/api/batches/last")).json();
+    if (!b.id || job) return;
+    const d = new Date(b.created);
+    const when = toBnDigits(`${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`);
+    $("#lastBatch").innerHTML = `<span class="muted">আগের যাচাই: ${when}, ${BN(b.done)}টি PDF${b.finished ? "" :
+      ` — মাঝপথে বন্ধ হয়েছিল (${BN(b.total)}টির মধ্যে ${BN(b.done)}টি যাচাই হয়েছিল)`}</span> <button class="btn small" id="openLast">আবার খুলুন</button>`;
+    $("#openLast").onclick = () => openLast(b.id);
+  } catch (e) {}
+}
+async function openLast(id) {
+  $("#formErr").textContent = "";
+  const res = await fetch("/api/batches/open", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({id})});
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) { $("#formErr").textContent = j.error || "আগের যাচাই খোলা যায়নি।"; return; }
+  job = j.job; resetResults(j.total);
+  if (!polling) polling = setInterval(poll, 700);
+}
+
+// ---- the app's own question / message box (no browser pop-ups: they show technical text and the address)
+function ask(question, what = "", yes = "হ্যাঁ, মুছে ফেলুন", no = "না") {
+  return new Promise((done) => {
+    $("#modalQ").textContent = question; $("#modalWhat").textContent = what; $("#modalWhat").hidden = !what;
+    $("#modalYes").textContent = yes; $("#modalNo").textContent = no; $("#modalNo").hidden = !no;
+    $("#modal").hidden = false; (no ? $("#modalNo") : $("#modalYes")).focus();
+    const close = (v) => { $("#modal").hidden = true; document.removeEventListener("keydown", key, true); done(v); };
+    const key = (e) => { if (e.key === "Escape") { e.stopPropagation(); close(false); } };
+    document.addEventListener("keydown", key, true);
+    $("#modalYes").onclick = () => close(true); $("#modalNo").onclick = () => close(false);
+  });
+}
+const tell = (message) => ask(message, "", "ঠিক আছে", "");
+
+// ---- side panels (help, history): open over the page, close with the button, Esc or a click beside the panel
+function openDrawer(id, on) {
+  const p = $(id);
+  p.hidden = !on;
+  if (on) (p.querySelector("input[type=search]") || p.querySelector(".dtop .btn")).focus();
+}
+document.querySelectorAll(".drawer-back").forEach((b) => b.addEventListener("mousedown", (e) => { if (e.target === b) b.hidden = true; }));
+
+// ---- history: every earlier check stays on this computer (encrypted) until it is deleted
+let hist = [];
+const bnDate = (iso) => { const d = new Date(iso); return toBnDigits(`${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`); };
+async function loadHistory() {
+  try { hist = (await (await fetch("/api/batches")).json()).batches || []; } catch (e) { hist = []; }
+  renderHistory();
+}
+function renderHistory() {
+  const q = $("#hq").value.trim().toLowerCase();
+  const times = {};
+  hist.forEach((b) => b.items.forEach((x) => { if (x.ok && x.app_id) times[x.app_id] = (times[x.app_id] || 0) + 1; }));
+  const html = hist.map((b) => {
+    const items = b.items.filter((x) => !q || [x.name, x.app_id, x.file].join(" ").toLowerCase().includes(q));
+    if (!items.length) return "";
+    const rows = items.map((x) => {
+      const res = !x.ok ? `<span class="pill no">${x.not_ispmis ? "ISPMIS-এর আবেদন নয়" : "যাচাই করা যায়নি"}</span>`
+        : (x.red ? '<span class="pill red">🚩</span> ' : "") + (x.n ? `<span class="pill bad">${BN(x.n)}টি সমস্যা</span>` : '<span class="pill ok">সমস্যা নেই</span>');
+      return `<tr><td>${x.ok ? esc(x.name) : esc(x.file)}${x.ok ? `<div class="muted">আইডি ${BN(esc(x.app_id || "—"))}${times[x.app_id] > 1 ? ` · ${BN(times[x.app_id])} বার যাচাই — "দেখুন"-এ সময়রেখা` : ""}</div>` : ""}</td><td>${res}</td>
+        <td class="act">${x.ok ? `<button class="btn small" data-hview="${b.id}|${x.i}">দেখুন</button>
+        <button class="btn small" data-hpdf="${b.id}|${x.i}">PDF</button>` : ""}
+        <button class="btn small del" data-hdel="${b.id}|${x.i}">মুছুন</button></td></tr>`;
+    }).join("");
+    return `<div class="hist-batch"><div class="hb"><b>${bnDate(b.created)} · ${BN(b.items.length)}টি PDF${b.finished ? "" : " (মাঝপথে বন্ধ হয়েছিল)"}</b>
+      <div class="row"><button class="btn small" data-hopen="${b.id}">পুরো তালিকা খুলুন</button>
+      <button class="btn small" data-hsum="${b.id}">সারাংশ PDF</button>
+      <button class="btn small" data-hzip="${b.id}">সব ফলাফল (ZIP)</button>
+      <button class="btn small del" data-hbdel="${b.id}">এই যাচাই পুরো মুছুন</button></div></div>
+      <table><tbody>${rows}</tbody></table></div>`;
+  }).join("");
+  $("#histList").innerHTML = html || `<div class="empty">${hist.length ? "কিছু পাওয়া যায়নি।" : "এখনো কোনো যাচাই নেই।"}</div>`;
+  const pick = (el, k) => { const [id, i] = el.dataset[k].split("|"); return [id, +i]; };
+  document.querySelectorAll("[data-hview]").forEach((el) => el.onclick = async () => {
+    const [id, i] = pick(el, "hview"); if (!(await openBatch(id))) return;
+    openDrawer("#historyPanel", false); showTab("list"); select(i); });
+  document.querySelectorAll("[data-hpdf]").forEach((el) => el.onclick = async () => {
+    const [id, i] = pick(el, "hpdf"); if (await openBatch(id)) savePdf([i]); });
+  document.querySelectorAll("[data-hopen]").forEach((el) => el.onclick = async () => {
+    if (await openBatch(el.dataset.hopen)) { openDrawer("#historyPanel", false); showTab("list"); } });
+  document.querySelectorAll("[data-hsum]").forEach((el) => el.onclick = async () => { if (await openBatch(el.dataset.hsum)) saveSummary(); });
+  document.querySelectorAll("[data-hzip]").forEach((el) => el.onclick = async () => {
+    if (await openBatch(el.dataset.hzip)) savePdf(results.map((r, i) => r.ok && !r.removed ? i : -1).filter((i) => i >= 0), true); });
+  document.querySelectorAll("[data-hdel]").forEach((el) => el.onclick = async () => {
+    const [id, i] = pick(el, "hdel");
+    if (!(await openBatch(id))) return;
+    await removeOne(i);
+    loadHistory(); });
+  document.querySelectorAll("[data-hbdel]").forEach((el) => el.onclick = async () => {
+    const id = el.dataset.hbdel, b = hist.find((x) => x.id === id);
+    if (!(await ask("আপনি কি নিশ্চিত যে, এই দিনের যাচাইয়ের সব ফাইল মুছে ফেলতে চান?",
+        `${bnDate(b.created)} · ${BN(b.items.length)}টি ফাইল। মুছে ফেললে আর ফেরত পাওয়া যাবে না।`))) return;
+    await fetch("/api/batches/delete", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({id})});
+    if (job === id) { job = null; results = []; $("#resultsPanel").hidden = true; $("#progWrap").hidden = true; $("#uploadPanel").classList.remove("compact"); }
+    loadHistory(); showLast(); });
+}
+// open an earlier check (if it is not the one on screen already) and wait until its results are shown
+async function openBatch(id) {
+  if (job === id && finished) return true;
+  const res = await fetch("/api/batches/open", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({id})});
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) { await tell(j.error || "এই যাচাই খোলা যায়নি।"); loadHistory(); return false; }
+  job = j.job; resetResults(j.total);
+  if (polling) { clearInterval(polling); polling = null; }
+  await poll();
+  return finished;
+}
+
+function resetResults(total) {
+  $("#lastBatch").innerHTML = "";
+  results = []; selected = null; filter = "ALL"; plan = null; finished = false;
+  typeFilter = ""; $("#tsel").hidden = true;
+  ["#planbox", "#typebox", "#wardbox", "#areabox"].forEach((b) => { $(b).innerHTML = ""; });
+  $("#uploadPanel").classList.add("compact"); $("#dropTitle").textContent = "নতুন যাচাই: PDF এখানে টেনে আনুন";
+  $("#resultsPanel").hidden = false; $("#progWrap").hidden = false; $("#pdfAll").disabled = true; $("#pdfSum").disabled = true;
+  $("#detail").innerHTML = EMPTY_DETAIL;
+  setProgress(0, total);
+  showTab("list");
+  render();
+}
+
+function setProgress(done, total) {
+  $("#prog").style.width = total ? (100 * done / total) + "%" : "0";
+  $("#progText").textContent = total ? `${BN(total)}টির মধ্যে ${BN(done)}টি যাচাই হয়েছে` + (done >= total ? " — শেষ" : " …") : "";
+}
+
+async function poll() {
+  if (!job) return;
+  const res = await fetch(`/api/jobs/${job}?since=${results.length}`);
+  const j = await res.json();
+  if (j.results && j.results.length) { results.push(...j.results); render(); }
+  setProgress(j.done, j.total);
+  if (j.finished) {
+    clearInterval(polling); polling = null;
+    // checks across the batch are attached after the last file: reload everything once
+    const all = await (await fetch(`/api/jobs/${job}?since=0`)).json();
+    results = all.results; plan = all.plan; finished = true; render(); renderPlan(); renderWards(); renderTypes(); renderAreas();
+    $("#pdfAll").disabled = !results.some((r) => r.ok);
+    $("#pdfSum").disabled = !results.length;
+    $("#progWrap").hidden = true;
+    const qs = new URLSearchParams(location.search);
+    if (qs.get("pdftest") === "1") $("#pdfAll").click();   // test aid (tests/test_desktop.py)
+    const pick = qs.get("pick");   // test aid: open one result (window self-screenshot)
+    if (pick !== null && results[+pick]) {
+      const at = qs.get("at") || "#detail";
+      if (at.startsWith("tab:")) showTab(at.slice(4)); else { select(+pick); $(at).scrollIntoView(); }
+      if (qs.get("delask") === "1") removeOne(+pick); }   // test aid: show the delete question
+    else if (selected !== null && results[selected]) showDetail(results[selected]);
+  }
+}
+
+const MAX_FILES = 500;
+async function runFiles(files) {
+  files = [...files].filter((f) => f.name.toLowerCase().endsWith(".pdf"));
+  $("#formErr").textContent = "";
+  if (!files.length) { $("#formErr").textContent = "কোনো PDF ফাইল পাওয়া যায়নি।"; return; }
+  if (files.length > MAX_FILES) {
+    $("#formErr").textContent = `${BN(files.length)}টি PDF দেওয়া হয়েছে — একসাথে সর্বোচ্চ ${BN(MAX_FILES)}টি যাচাই করা যায়। ফাইলগুলো কয়েকটি ভাগে দিন।`;
+    return;
+  }
+  const j = await startJob({total: files.length});
+  job = j.job; resetResults(files.length);
+  if (!polling) polling = setInterval(poll, 700);
+  for (const f of files) {   // one failed upload must not stop the others
+    try { await fetch(`/api/jobs/${job}/file?name=${encodeURIComponent(f.name)}`, {method: "POST", body: f}); } catch (e) {}
+  }
+  await fetch(`/api/jobs/${job}/close`, {method: "POST"});
+}
+
+async function runFolder(folder) {
+  $("#formErr").textContent = "";
+  try {
+    const j = await startJob({folder});
+    job = j.job; resetResults(j.total);
+    if (!polling) polling = setInterval(poll, 700);
+  } catch (e) { $("#formErr").textContent = e.message; }
+}
+
+// ---- tabs: the list of applications, where to go first, problem types, wards
+function showTab(name) {
+  tab = name;
+  document.querySelectorAll(".tab").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === name ? "true" : "false"));
+  ["list", "plan", "types", "areas", "wards"].forEach((k) => { $("#pane-" + k).hidden = k !== name; });
+}
+function setTabCount(name, n) {
+  const b = document.querySelector(`.tab[data-tab="${name}"]`);
+  b.hidden = !n; b.querySelector(".cnt").textContent = n ? BN(n) : "";
+  if (!n && tab === name) showTab("list");
+}
+document.querySelectorAll(".tab").forEach((b) => b.onclick = () => showTab(b.dataset.tab));
+
+let visible = [];   // indexes of the rows in the list, in order (for ↑ / ↓)
+function render() {
+  const live = results.filter((r) => !r.removed);
+  const c = {ALL: live.length, OK: 0, BAD: 0, NO: 0, RED: live.filter(isRed).length};
+  live.forEach((r) => c[kind(r)]++);
+  const cards = [["ALL", "মোট", ""], ["OK", "সমস্যা নেই", "ok"], ["BAD", "সমস্যা আছে", "bad"]];
+  if (c.RED) cards.push(["RED", "🚩 একই ওয়ার্ডে ২০ মিনিটের কম ব্যবধানে আবেদন", "red"]);
+  if (c.NO) cards.push(["NO", "যাচাই করা যায়নি", "no"]);
+  $("#cards").innerHTML = cards.map(([k, lab, cls]) =>
+    `<button class="card ${cls} ${filter === k ? "active" : ""}" data-k="${k}" aria-pressed="${filter === k}"><span class="n">${BN(c[k])}</span><span>${lab}</span></button>`).join("");
+  document.querySelectorAll(".card").forEach((el) => el.onclick = () => { filter = el.dataset.k; showTab("list"); render(); });
+  const q = $("#q").value.trim().toLowerCase();
+  const rows = results.map((r, i) => [r, i]).filter(([r]) => !r.removed && (filter === "ALL" || (filter === "RED" ? isRed(r) : kind(r) === filter)) &&
+    hasType(r) &&
+    (!q || [r.applicant_name, r.applicant_name_en, r.application_id, r.file_name].join(" ").toLowerCase().includes(q)));
+  visible = rows.map(([, i]) => i);
+  $("#cntList").textContent = BN(rows.length);
+  $("#tbody").innerHTML = rows.length ? rows.map(([r, i]) => {
+    const who = r.ok ? `${esc(r.applicant_name)}<div class="muted">আইডি ${BN(r.application_id || "—")}</div>` : `${esc(r.file_name)}`;
+    const btn = finished && r.ok ? `<button class="btn small" data-pdf="${i}" title="এই আবেদনের ফলাফল PDF">PDF</button>` : "";
+    return `<tr data-i="${i}" class="${selected === i ? "sel" : ""} ${isRed(r) ? "redrow" : ""}"><td>${BN(i + 1)}</td><td>${who}</td><td>${pill(r)}</td><td class="act">${btn}</td></tr>`;
+  }).join("") : `<tr><td colspan="4" class="empty">কিছু নেই</td></tr>`;
+  document.querySelectorAll("#tbody tr[data-i]").forEach((tr) => tr.onclick = () => select(+tr.dataset.i));
+  document.querySelectorAll("#tbody button[data-pdf]").forEach((b) => b.onclick = (e) => { e.stopPropagation(); savePdf([+b.dataset.pdf]); });
+  renderFilterChip();
+}
+// choose one application: mark its row and show it on the right (the list itself is not drawn again)
+function select(i) {
+  if (!results[i]) return;
+  selected = i;
+  document.querySelectorAll("#tbody tr.sel").forEach((tr) => tr.classList.remove("sel"));
+  const tr = document.querySelector(`#tbody tr[data-i="${i}"]`);
+  if (tr) { tr.classList.add("sel"); tr.scrollIntoView({block: "nearest"}); }
+  showDetail(results[i]);
+  $("#detail").scrollTop = 0;
+}
+function renderFilterChip() {
+  const box = $("#activeFilter");
+  if (!typeFilter) { box.innerHTML = ""; return; }
+  const v = typeFilter.slice(2), opt = [...$("#tsel").options].find((o) => o.value === typeFilter);
+  box.innerHTML = `<span class="chip">শুধু: ${esc(opt ? opt.textContent : v)} <button id="chipX" title="সব আবেদন দেখান">✕</button></span>`;
+  $("#chipX").onclick = () => setType("");
+}
+
+// ---- problem types: summary of the whole batch, and the list filter
+const tagsOf = (r) => r.problem_tags || (r.action_plan || []).map((s) => ({code: s.code, label: s.label || s.code, type: s.type || "অন্যান্য"}));
+function hasType(r) {
+  if (!typeFilter) return true;
+  const steps = tagsOf(r);
+  return typeFilter.startsWith("t:") ? steps.some((s) => s.type === typeFilter.slice(2)) : steps.some((s) => s.code === typeFilter.slice(2));
+}
+function typeSummary() {
+  const groups = {};
+  results.filter((r) => r.ok && !r.removed).forEach((r) => {
+    const seen = new Set(), seenT = new Set();
+    tagsOf(r).forEach((s) => {
+      const t = s.type || "অন্যান্য";
+      const g = groups[t] || (groups[t] = {type: t, apps: 0, codes: {}});
+      if (!seenT.has(t)) { g.apps++; seenT.add(t); }
+      if (!seen.has(s.code)) { (g.codes[s.code] || (g.codes[s.code] = {code: s.code, label: s.label || s.code, n: 0})).n++; seen.add(s.code); }
+    });
+  });
+  return Object.values(groups).map((g) => ({...g, codes: Object.values(g.codes).sort((a, b) => b.n - a.n)})).sort((a, b) => b.apps - a.apps);
+}
+function renderTypes() {
+  const box = $("#typebox"), sel = $("#tsel");
+  const ts = finished ? typeSummary() : [];
+  const n = results.filter((r) => r.ok && !r.removed).length;
+  setTabCount("types", ts.length);
+  if (!ts.length) { box.innerHTML = ""; sel.hidden = true; return; }
+  const max = Math.max(...ts.flatMap((g) => g.codes.map((c) => c.n)));
+  sel.hidden = false;
+  box.innerHTML = `<div class="row" style="justify-content:space-between"><h3 style="margin:0">ভুলের ধরনভিত্তিক সারাংশ</h3>
+    <span class="muted">${BN(n)}টি আবেদনের মধ্যে কোন ভুল কতটি আবেদনে — কোনো সারি নির্বাচন করলে তালিকায় শুধু সেই আবেদনগুলো দেখায়</span></div>
+    <div class="types">${ts.map((g) => `<div class="tgroup"><h4 data-t="t:${esc(g.type)}" class="${typeFilter === "t:" + g.type ? "active" : ""}"><span>${esc(g.type)}</span><span>${BN(g.apps)}টি আবেদন</span></h4>
+      ${g.codes.map((c) => `<div class="trow ${typeFilter === "c:" + c.code ? "active" : ""}" data-t="c:${esc(c.code)}"><span>${t(c.label)}</span><b>${BN(c.n)}টি</b>
+        <div class="tbar"><i style="width:${Math.max(4, Math.round(c.n / max * 100))}%"></i></div></div>`).join("")}</div>`).join("")}</div>`;
+  box.querySelectorAll("[data-t]").forEach((el) => el.onclick = () => { setType(el.dataset.t); showTab("list"); });
+  sel.innerHTML = `<option value="">সমস্যার ধরন: সব</option>` + ts.map((g) => `<optgroup label="${esc(g.type)}"><option value="t:${esc(g.type)}">${esc(g.type)} — সব (${BN(g.apps)})</option>` +
+    g.codes.map((c) => `<option value="c:${esc(c.code)}">${esc(c.label)} (${BN(c.n)})</option>`).join("") + `</optgroup>`).join("");
+  sel.value = typeFilter;
+}
+function setType(v) { typeFilter = v; renderTypes(); render(); }
+
+// ---- union / ward summary (fcaudit/areas.py): where which mistakes are most common
+const wardBn = (w) => w == null ? "ওয়ার্ড জানা যায়নি" : `ওয়ার্ড ${toBnDigits(pad(w))}`;
+const topBn = (top) => top.length ? top.map((x) => `${esc(x.label)} (${BN(x.n)}টি)`).join("; ") : "—";
+function renderAreas() {
+  const box = $("#areabox"), areas = (finished && plan && plan.areas) || [];
+  setTabCount("areas", areas.length);
+  if (!areas.length) { box.innerHTML = ""; return; }
+  const rows = areas.map((u) => {
+    const pct = u.n ? Math.round(100 * u.bad / u.n) : 0;
+    const head = `<tr class="un"><td>${esc(u.union)}${u.upazila ? ` <span class="muted">· ${esc(u.upazila)}</span>` : ""}</td><td class="c">${BN(u.n)}টি</td>
+      <td class="c">${BN(u.bad)}টি (${BN(pct)}%)</td><td>${topBn(u.top)}</td></tr>`;
+    const wards = (u.wards.length > 1 || (u.wards[0] && u.wards[0].ward != null)) ? u.wards.map((w) => `<tr class="wd"><td>${wardBn(w.ward)}</td>
+      <td class="c">${BN(w.n)}টি</td><td class="c">${BN(w.bad)}টি</td><td>${topBn(w.top)}</td></tr>`).join("") : "";
+    return head + wards;
+  }).join("");
+  box.innerHTML = `<div class="row" style="justify-content:space-between"><h3 style="margin:0">এলাকাভিত্তিক সারাংশ — কোন ইউনিয়ন ও ওয়ার্ডে কোন ভুল বেশি</h3>
+      <button class="btn" id="pdfAreas">এলাকাভিত্তিক সারাংশ PDF</button></div>
+    <p class="muted" style="margin:4px 0 8px">যে এলাকায় সমস্যা বেশি, সেটি ওপরে। ভুলের সংখ্যা মানে কতটি আবেদনে ভুলটি আছে — উপজেলা অফিসের মাসিক সভা ও প্রশিক্ষণের জন্য।</p>
+    <div class="tablewrap" style="max-height:none;min-height:0"><table class="areas"><thead><tr><th>ইউনিয়ন / পৌরসভা / সিটি — ওয়ার্ড</th><th>আবেদন</th><th>সমস্যা আছে</th><th>সবচেয়ে বেশি যে ভুল</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+  $("#pdfAreas").onclick = saveAreas;
+}
+function saveAreas() {
+  if (!job) return;
+  const d = new Date(), name = `এলাকাভিত্তিক-সারাংশ_${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  if (DESKTOP) console.log("KN_PDF:" + JSON.stringify({job, items: [{summary: true, page: "areas", name}]}));
+  else window.open(`/api/jobs/${job}/areas?print=1`, "_blank");
+}
+
+// ---- the same application checked more than once on this computer: when, which problems, which were fixed
+function timelineHtml(r) {
+  const tl = r.timeline;
+  if (!tl || tl.length < 2) return "";
+  const li = tl.map((x, k) => {
+    const same = k > 0 && x.problems != null && tl[k - 1].problems != null && !x.fixed.length && !x.new.length;
+    const what = x.problems == null ? (x.n ? `${BN(x.n)}টি সমস্যা` : "কোনো সমস্যা নেই") : (x.problems.length ? "সমস্যা: " + t(x.problems.join("; ")) : "কোনো সমস্যা নেই");
+    return `<li class="${x.current ? "cur" : ""}"><span class="when">${bnDate(x.when)}${x.current ? " — এই যাচাই" : ""}</span><div>${what}</div>
+      ${x.fixed.length ? `<div class="fix">ঠিক হয়েছে: ${t(x.fixed.join("; "))}</div>` : ""}${x.new.length ? `<div class="new">নতুন: ${t(x.new.join("; "))}</div>` : ""}${same ? '<div class="muted">আগের যাচাইয়ের পর কোনো পরিবর্তন নেই</div>' : ""}</li>`;
+  }).join("");
+  return `<div class="tl"><b>এই আবেদনের যাচাইয়ের সময়রেখা (${BN(tl.length)} বার)</b><ol>${li}</ol></div>`;
+}
+
+function renderPlan() {
+  const box = $("#planbox");
+  const all = plan ? plan.top.concat(plan.random).map((x) => x.i) : [];
+  setTabCount("plan", all.length);
+  if (!all.length) { box.innerHTML = ""; return; }
+  const li = (x) => `<li data-i="${x.i}"><b>${esc(results[x.i].applicant_name || results[x.i].file_name)}</b>
+     <span class="muted">(আইডি ${BN(results[x.i].application_id || "—")})</span><div class="why">${t(x.why)}</div></li>`;
+  box.innerHTML = `<div class="row" style="justify-content:space-between"><h3>আগে এই খানাগুলোতে গিয়ে দেখুন</h3>
+      <button class="btn" id="printAll">এদের যাচাই-ফর্ম প্রিন্ট করুন (${BN(all.length)}টি)</button></div>
+    ${plan.top.length ? `<ol>${plan.top.map(li).join("")}</ol>` : ""}
+    ${plan.random.length ? `<div class="muted">সমস্যা নেই, তবু নমুনা হিসেবে এগুলোও দেখুন:</div><ol>${plan.random.map(li).join("")}</ol>` : ""}`;
+  box.querySelectorAll("li[data-i]").forEach((el) => el.onclick = () => {
+    filter = "ALL"; typeFilter = ""; $("#q").value = ""; renderTypes(); render(); showTab("list"); select(+el.dataset.i); });
+  $("#printAll").onclick = () => window.open(printUrl(all), "_blank");
+}
+
+function renderWards() {
+  const box = $("#wardbox");
+  const ws = ((plan && plan.wards) || []).filter((w) => w.flags.length);
+  setTabCount("wards", ws.length);
+  if (!ws.length) { box.innerHTML = ""; return; }
+  box.innerHTML = `<h3>ওয়ার্ডভিত্তিক সমস্যা</h3>` +
+    ws.map((w) => `<div class="ward"><b>${t(w.ward)}</b> <span class="muted">· ${BN(w.n)}টি ফর্ম</span>
+      ${w.flags.map((f) => `<div class="issue"><div class="p"><span class="lab">সমস্যা:</span> ${t(f.title)} — ${t(f.detail)}</div>
+        <div class="a"><span class="lab">করণীয়:</span> ${t(f.action)}</div></div>`).join("")}</div>`).join("");
+}
+
+// household make-up: boys counted as male, girls as female
+function compHtml(c) {
+  if (!c) return "";
+  return `<div class="comp"><b>খানার গঠন</b> <span class="muted">(সদস্য-তালিকা অনুযায়ী)</span><ul>
+    <li>খানার মোট সদস্য: ${BN(c.total)}</li><li>পুরুষ (ছেলে শিশুসহ): ${BN(c.male)}</li><li>নারী (মেয়ে শিশুসহ): ${BN(c.female)}</li>
+    ${c.hijra ? `<li>হিজড়া: ${BN(c.hijra)}</li>` : ""}${c.children != null ? `<li>এর মধ্যে শিশু (১৮ বছরের কম): ${BN(c.children)}</li>` : ""}</ul></div>`;
+}
+// costly assets against the whole household's income (all members + money from abroad)
+const tkFmt = (n) => { const s = String(Math.round(n || 0)); if (s.length <= 3) return s;
+  let head = s.slice(0, -3); const parts = []; while (head.length > 2) { parts.unshift(head.slice(-2)); head = head.slice(0, -2); }
+  return [head, ...parts].filter(Boolean).join(",") + "," + s.slice(-3); };
+function incomeHtml(x) {
+  if (!x || x.decision !== "অসামঞ্জস্যপূর্ণ") return "";   // shown only when inconsistent
+  const risk = {"নিম্ন": "ok", "মধ্যম": "warn", "উচ্চ": "bad"}[x.risk] || "";
+  return `<div class="comp"><b>আয় বনাম দামি সম্পদ</b><ol>
+    <li>মোট পারিবারিক বার্ষিক আয় (রেমিট্যান্সসহ): ${BN(tkFmt(x.household_income))} টাকা${x.remittance ? " + বিদেশ থেকে অর্থ (পরিমাণ ফরমে নেই)" : ""}</li>
+    <li>সিদ্ধান্ত: <b>${esc(x.decision)}</b></li><li>ঝুঁকি লেভেল: <span class="risk ${risk}">${esc(x.risk)}</span></li>
+    <li>বিশদ কারণ: ${t(x.reason)}</li></ol></div>`;
+}
+// one application on the right: problems and what to do first, then the household and the pictures
+function showDetail(r) {
+  const i = results.indexOf(r);
+  if (!r.ok) {
+    $("#detail").innerHTML = `<h3>${esc(r.file_name)}</h3>
+      <div class="verdict no">${r.not_ispmis ? "এই ফাইলটি ISPMIS-এ জমা দেওয়া আবেদনপত্র নয় — তাই যাচাই করা হয়নি।" : "ফাইলটি খোলা যায়নি — তাই যাচাই করা হয়নি।"}</div>
+      <div class="issue"><div class="a"><span class="lab">করণীয়:</span> ${esc(r.action || "ISPMIS থেকে আবেদনপত্রের মূল PDF আবার নামিয়ে আপলোড করুন।")}</div></div>
+      <div class="row"><button class="btn del" id="delOne" ${finished ? "" : "disabled"}>তালিকা থেকে মুছুন</button></div>`;
+    $("#delOne").onclick = () => removeOne(i);
+    return;
+  }
+  const geo = r.geo_context_used || {}, xs = issues(r);
+  const area = [(geo.upazila || "").split(" (")[0], geo.district].filter(Boolean).join(", ");
+  const list = xs.length ? xs.map((x, k) => `<div class="issue"><div class="p"><span class="lab">সমস্যা ${BN(k + 1)}:</span> ${t(x.problem)}
+      ${x.image_refs ? `<div class="match">${x.image_refs.map(([j, kk]) => `<img src="${imgUrl(j, kk)}" title="${esc(results[j] ? results[j].applicant_name : "")}" alt="">`).join("")}</div>` : ""}</div>
+      <div class="a"><span class="lab">করণীয়:</span> ${t(x.action)}</div></div>`).join("")
+    : '<div class="issue" style="border-left-color:var(--ok-line)"><div class="a"><span class="lab">করণীয়:</span> কিছু করতে হবে না।</div></div>';
+  const rc = r.recheck && r.recheck.has_codes && r.recheck.fixed.length
+    ? `<div class="recheck">এই আবেদন আগেও যাচাই হয়েছিল — এর মধ্যে ${BN(r.recheck.fixed.length)}টি সমস্যা সংশোধন হয়েছে।</div>` : "";
+  const imgs = (r.images_present || []).map((k) => `<figure><img src="${imgUrl(i, k)}" alt=""><figcaption>${IMGBN[k]}</figcaption></figure>`).join("");
+  $("#detail").innerHTML = `<div class="dhead"><div><h3>${esc(r.applicant_name)}</h3>
+      <div class="muted">${esc(r.applicant_name_en || "")} · আইডি ${BN(r.application_id || "—")}${area ? " · " + esc(area) : ""}</div></div>
+      <div class="row"><button class="btn primary" id="pdfOne" ${finished ? "" : "disabled"}>ফলাফল PDF ডাউনলোড</button>
+      <button class="btn" id="printSheet">যাচাই-ফর্ম প্রিন্ট</button>
+      <button class="btn del" id="delOne" ${finished ? "" : "disabled"}>মুছুন</button></div></div>
+    <div class="verdict ${xs.length ? "bad" : "ok"}">${xs.length ? `${BN(xs.length)}টি সমস্যা পাওয়া গেছে` : "কোনো সমস্যা নেই"}</div>
+    ${rc}${list}
+    ${incomeHtml(r.income_asset_analysis)}
+    ${timelineHtml(r)}
+    <h4 class="sect">খানা ও ছবি</h4>
+    ${compHtml(r.household_composition)}
+    ${r.family_tree_html ? `<div class="comp"><b>খানার গঠন — পারিবারিক গাছ</b> <span class="muted">(মূলে আবেদনকারী)</span>${r.family_tree_html}</div>` : ""}
+    ${imgs ? `<div class="thumbs">${imgs}</div>` : ""}
+    <div class="muted">ফাইল: ${esc(r.file_name)}</div>`;
+  $("#pdfOne").onclick = () => savePdf([i]);
+  $("#delOne").onclick = () => removeOne(i);
+  $("#printSheet").onclick = () => window.open(printUrl([i]), "_blank");
+}
+
+$("#drop").onclick = (e) => { if (!e.target.closest("button")) $("#fileInput").click(); };
+$("#drop").onkeydown = (e) => { if ((e.key === "Enter" || e.key === " ") && e.target === $("#drop")) { e.preventDefault(); $("#fileInput").click(); } };
+$("#pickFiles").onclick = () => $("#fileInput").click();
+$("#pickFolder").onclick = () => $("#folderInput").click();
+$("#fileInput").onchange = (e) => { runFiles(e.target.files); e.target.value = ""; };
+$("#folderInput").onchange = (e) => { runFiles(e.target.files); e.target.value = ""; };
+let qTimer = null;
+$("#q").oninput = () => { clearTimeout(qTimer); qTimer = setTimeout(render, 150); };
+$("#tsel").onchange = (e) => setType(e.target.value);
+$("#helpBtn").onclick = () => openDrawer("#helpPanel", true);
+$("#helpClose").onclick = () => openDrawer("#helpPanel", false);
+if (new URLSearchParams(location.search).get("help") === "1") setTimeout(() => $("#helpBtn").click(), 500);   // test aid
+$("#pdfSum").onclick = saveSummary;
+$("#histBtn").onclick = () => { openDrawer("#historyPanel", true); loadHistory(); };
+$("#histClose").onclick = () => openDrawer("#historyPanel", false);
+$("#hq").oninput = renderHistory;
+if (new URLSearchParams(location.search).get("hist") === "1") setTimeout(() => $("#histBtn").click(), 500);   // test aid
+$("#pdfAll").onclick = () => savePdf(results.map((r, i) => r.ok && !r.removed ? i : -1).filter((i) => i >= 0), true);
+// keyboard: Esc closes a side panel; ↑ / ↓ go to the previous / next application in the list
+document.addEventListener("keydown", (e) => {
+  if (!$("#modal").hidden) return;
+  if (e.key === "Escape") { document.querySelectorAll(".drawer-back").forEach((d) => d.hidden = true); return; }
+  if ((e.key !== "ArrowDown" && e.key !== "ArrowUp") || tab !== "list" || $("#resultsPanel").hidden) return;
+  if (e.target.closest("input, select, textarea, .drawer") || !visible.length) return;
+  e.preventDefault();
+  const k = visible.indexOf(selected);
+  select(visible[k < 0 ? 0 : Math.max(0, Math.min(visible.length - 1, k + (e.key === "ArrowDown" ? 1 : -1)))]);
+});
+// "ক্যাশ পরিষ্কার": frees memory and temporary files (the saved history is kept)
+$("#cacheBtn").onclick = async () => {
+  if (!(await ask("ক্যাশ পরিষ্কার করবেন?", "অ্যাপের মেমরি ও অস্থায়ী ফাইল খালি হবে — অ্যাপ আবার দ্রুত চলবে। আগের যাচাইয়ের ইতিহাস মুছবে না।",
+                  "হ্যাঁ, পরিষ্কার করুন", "না"))) return;
+  if (DESKTOP) console.log("KN_CACHE:clear");   // the window clears its own page cache
+  try {
+    const r = await (await fetch("/api/cache/clear", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({keep: job})})).json();
+    const mb = (r.temp_mb || 0) + (r.db_mb || 0);
+    await tell(`ক্যাশ পরিষ্কার হয়েছে।${mb >= 0.1 ? ` ${BN(mb.toFixed(1))} MB জায়গা খালি হয়েছে।` : ""}`);
+  } catch (e) { await tell("ক্যাশ পরিষ্কার করা যায়নি। অ্যাপ বন্ধ করে আবার চালু করুন।"); }
+};
+// a wrongly uploaded PDF: remove it; the checks across the batch are run again without it
+async function removeOne(i) {
+  const r = results[i];
+  if (!r || !finished) return;
+  if (!(await ask("আপনি কি নিশ্চিত যে, আপলোডকৃত ফাইলটি মুছে ফেলতে চান?",
+      `${r.ok ? r.applicant_name + " (আইডি " + BN(r.application_id || "—") + ")" : r.file_name} — মুছে ফেললে এর ফলাফল আর ফেরত পাওয়া যাবে না।`))) return;
+  const res = await fetch(`/api/jobs/${job}/remove`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({i})});
+  if (!res.ok) { await tell("মুছে ফেলা যায়নি। আবার চেষ্টা করুন।"); return; }
+  const j = await res.json();
+  results = j.results; plan = j.plan;
+  if (selected === i) { selected = null; $("#detail").innerHTML = EMPTY_DETAIL; }
+  render(); renderPlan(); renderWards(); renderTypes(); renderAreas();
+  if (!$("#historyPanel").hidden) loadHistory();
+  $("#pdfAll").disabled = !results.some((x) => x.ok && !x.removed);
+  if (selected !== null && results[selected]) showDetail(results[selected]);
+}
+const drop = $("#drop");
+drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); runFiles(e.dataTransfer.files); };
+{ const f = new URLSearchParams(location.search).get("folder");   // desktop: a folder dropped on the app icon
+  if (f) setTimeout(() => runFolder(f), 300); else showLast(); }
+fetch("/api/ping").then((r) => r.json()).then((j) => $("#ver").textContent = `সংস্করণ ${BN(j.version)}`).catch(() => {});
+</script>
+<script>if ("serviceWorker" in navigator) { window.addEventListener("load", () => navigator.serviceWorker.register("./service-worker.js").catch(()=>{})); }</script>\n</body>
+</html>
